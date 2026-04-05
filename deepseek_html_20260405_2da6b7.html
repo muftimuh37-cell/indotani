@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>TaniCatat - Sistem Trader Komoditas Desa</title>
+    <!-- TailwindCSS + Font Awesome (simple icons) + Chart.js + SheetJS + Supabase -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        /* smooth transitions & clean mobile tap */
+        .card-hover:active { transform: scale(0.98); transition: 0.05s; }
+        button:active { transform: scale(0.96); }
+        ::-webkit-scrollbar { width: 4px; }
+        .active-tab { background-color: #2c7a4d; color: white; }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans antialiased">
+
+    <!-- AUTH CONTAINER (Login/Register) -->
+    <div id="authContainer" class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-emerald-700 to-emerald-900">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
+            <div class="text-center mb-6">
+                <i class="fas fa-store text-5xl text-emerald-700 mb-2"></i>
+                <h1 class="text-2xl font-bold text-gray-800">TaniCatat</h1>
+                <p class="text-gray-500 text-sm">Sistem Pencatatan Tengkulak</p>
+            </div>
+            <!-- Login Form -->
+            <div id="loginPanel">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-semibold mb-1">Email</label>
+                    <input type="email" id="loginEmail" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500" placeholder="tengkulak@example.com">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-semibold mb-1">Password</label>
+                    <input type="password" id="loginPassword" class="w-full p-3 border border-gray-300 rounded-lg" placeholder="******">
+                </div>
+                <button id="loginBtn" class="w-full bg-emerald-700 text-white p-3 rounded-xl font-bold text-lg shadow-md mb-3">Masuk</button>
+                <p class="text-center text-gray-600">Belum punya akun? <button id="showRegisterBtn" class="text-emerald-700 font-semibold">Daftar</button></p>
+            </div>
+            <!-- Register Form -->
+            <div id="registerPanel" class="hidden">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-semibold mb-1">Email</label>
+                    <input type="email" id="regEmail" class="w-full p-3 border border-gray-300 rounded-lg">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-semibold mb-1">Password (min 6)</label>
+                    <input type="password" id="regPassword" class="w-full p-3 border border-gray-300 rounded-lg">
+                </div>
+                <button id="registerBtn" class="w-full bg-emerald-600 text-white p-3 rounded-xl font-bold">Daftar</button>
+                <p class="text-center text-gray-600 mt-3"><button id="showLoginBtn" class="text-emerald-700">← Kembali ke Login</button></p>
+            </div>
+            <div id="authMessage" class="mt-3 text-center text-sm text-red-600"></div>
+        </div>
+    </div>
+
+    <!-- MAIN APP (Protected) -->
+    <div id="appContainer" class="hidden max-w-4xl mx-auto pb-20">
+        <!-- Header mobile friendly -->
+        <div class="bg-white shadow-sm sticky top-0 z-10 border-b border-gray-200">
+            <div class="flex justify-between items-center p-4">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-tractor text-emerald-700 text-2xl"></i>
+                    <h1 class="text-xl font-bold text-gray-800">TaniCatat</h1>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span id="userEmailSpan" class="text-sm text-gray-600 hidden sm:inline"></span>
+                    <button id="logoutBtn" class="bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-sm font-medium"><i class="fas fa-sign-out-alt mr-1"></i> Keluar</button>
+                </div>
+            </div>
+            <!-- Navigation Tabs (mobile scrollable) -->
+            <div class="flex overflow-x-auto whitespace-nowrap gap-1 px-2 pb-2 scroll-smooth">
+                <button data-tab="dashboard" class="tab-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-700">📊 Dashboard</button>
+                <button data-tab="purchases" class="tab-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-700">🛒 Pembelian</button>
+                <button data-tab="sales" class="tab-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-700">💰 Penjualan</button>
+                <button data-tab="stock" class="tab-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-700">📦 Stok Gudang</button>
+                <button data-tab="buyers" class="tab-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-700">📋 Direktori Buyer</button>
+                <button data-tab="national" class="tab-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-700">🏷️ Harga Nasional</button>
+                <button data-tab="reports" class="tab-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-700">📑 Laporan & Profit</button>
+            </div>
+        </div>
+
+        <!-- Dynamic Content Panels -->
+        <div id="dashboardPanel" class="p-4 panel">Loading dashboard...</div>
+        <div id="purchasesPanel" class="p-4 panel hidden">Loading...</div>
+        <div id="salesPanel" class="p-4 panel hidden">Loading...</div>
+        <div id="stockPanel" class="p-4 panel hidden">Loading...</div>
+        <div id="buyersPanel" class="p-4 panel hidden">Loading...</div>
+        <div id="nationalPanel" class="p-4 panel hidden">Loading...</div>
+        <div id="reportsPanel" class="p-4 panel hidden">Loading...</div>
+    </div>
+
+    <script>
+        // ------------------------------ CONFIGURATION ---------------------------------
+        // ==== GANTI DENGAN SUPABASE CREDENTIALS ANDA ====
+        const SUPABASE_URL = "https://abcdefghijklmnop.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3ZWZnaGprbG1uIiwicm9sZSI6ImFub24iLCJpYXQiOjE2OTg0NzY0MDAsImV4cCI6MjAxNDA1MjQwMH0.TU7dE8f9gH2jK3lL4zM5nN6pP7qQ8rR9sS0tT1uU2vV3wW4xX5yY6zZ";
+        
+        // If you test, replace above with actual keys. Provide instructions.
+        // For demo, we show placeholders, user must replace.
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        // Global state
+        let currentUser = null;
+        let nationalChart = null;
+        
+        // Helper: show/hide auth & app
+        function showAuth() {
+            document.getElementById('authContainer').classList.remove('hidden');
+            document.getElementById('appContainer').classList.add('hidden');
+        }
+        function showApp() {
+            document.getElementById('authContainer').classList.add('hidden');
+            document.getElementById('appContainer').classList.remove('hidden');
+            loadAllInitialData();
+        }
+        
+        // Authentication listeners
+        async function handleLogin(email, password) {
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) throw error;
+            currentUser = data.user;
+            showApp();
+        }
+        async function handleRegister(email, password) {
+            const { data, error } = await supabase.auth.signUp({ email, password });
+            if (error) throw error;
+            if (data.user) {
+                alert("Pendaftaran berhasil! Silakan login.");
+                document.getElementById('loginPanel').classList.remove('hidden');
+                document.getElementById('registerPanel').classList.add('hidden');
+            }
+        }
+        async function handleLogout() {
+            await supabase.auth.signOut();
+            currentUser = null;
+            showAuth();
+            resetPanels();
+        }
+        
+        // Check existing session
+        async function checkSession() {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                currentUser = session.user;
+                showApp();
+            } else {
+                showAuth();
+            }
+        }
+        
+        // ---- DATA CRUD Operations (user-scoped) ----
+        async function addPurchase(data) {
+            const { error } = await supabase.from('purchases').insert({
+                user_id: currentUser.id,
+                date: data.date,
+                farmer_name: data.farmer_name,
+                commodity: data.commodity,
+                quantity: data.quantity,
+                price_per_kg: data.price_per_kg,
+                created_at: new Date()
+            });
+            if (error) throw error;
+        }
+        async function addSale(data) {
+            const { error } = await supabase.from('sales').insert({
+                user_id: currentUser.id,
+                date: data.date,
+                buyer_name: data.buyer_name,
+                commodity: data.commodity,
+                quantity: data.quantity,
+                price_per_kg: data.price_per_kg,
+                created_at: new Date()
+            });
+            if (error) throw error;
+        }
+        async function fetchPurchases() {
+            const { data, error } = await supabase.from('purchases').select('*').eq('user_id', currentUser.id).order('date', { ascending: false });
+            if (error) throw error;
+            return data || [];
+        }
+        async function fetchSales() {
+            const { data, error } = await supabase.from('sales').select('*').eq('user_id', currentUser.id).order('date', { ascending: false });
+            if (error) throw error;
+            return data || [];
+        }
+        async function fetchBuyers() {
+            const { data, error } = await supabase.from('buyers').select('*').eq('user_id', currentUser.id).order('buyer_name');
+            if (error) throw error;
+            return data || [];
+        }
+        async function addBuyer(buyer) {
+            const { error } = await supabase.from('buyers').insert({ ...buyer, user_id: currentUser.id });
+            if (error) throw error;
+        }
+        async function updateBuyer(id, updates) {
+            const { error } = await supabase.from('buyers').update(updates).eq('id', id).eq('user_id', currentUser.id);
+            if (error) throw error;
+        }
+        async function deleteBuyer(id) {
+            const { error } = await supabase.from('buyers').delete().eq('id', id).eq('user_id', currentUser.id);
+            if (error) throw error;
+        }
+        
+        // ---- Stock Calculation (Copra, Clove, Nutmeg, Coconut) ----
+        async function computeStock() {
+            const purchases = await fetchPurchases();
+            const sales = await fetchSales();
+            const commodities = ['Copra', 'Clove', 'Nutmeg', 'Coconut'];
+            const stockMap = {};
+            commodities.forEach(c => { stockMap[c] = 0; });
+            purchases.forEach(p => {
+                if (commodities.includes(p.commodity)) stockMap[p.commodity] += p.quantity;
+            });
+            sales.forEach(s => {
+                if (commodities.includes(s.commodity)) stockMap[s.commodity] -= s.quantity;
+            });
+            return stockMap;
+        }
+        
+        // Profit analytics (average purchase price method)
+        async function getProfitAnalytics() {
+            const purchases = await fetchPurchases();
+            const sales = await fetchSales();
+            // total purchase value
+            const totalPurchaseValue = purchases.reduce((sum, p) => sum + (p.quantity * p.price_per_kg), 0);
+            const totalSalesValue = sales.reduce((sum, s) => sum + (s.quantity * s.price_per_kg), 0);
+            // average purchase price per commodity (weighted)
+            const commodityAvgPurchase = {};
+            const commodityTotalQty = {};
+            purchases.forEach(p => {
+                const comm = p.commodity;
+                if (!commodityAvgPurchase[comm]) { commodityAvgPurchase[comm] = 0; commodityTotalQty[comm] = 0; }
+                commodityAvgPurchase[comm] += p.quantity * p.price_per_kg;
+                commodityTotalQty[comm] += p.quantity;
+            });
+            for (let c in commodityAvgPurchase) {
+                if (commodityTotalQty[c] > 0) commodityAvgPurchase[c] = commodityAvgPurchase[c] / commodityTotalQty[c];
+                else commodityAvgPurchase[c] = 0;
+            }
+            let totalProfit = 0;
+            for (let sale of sales) {
+                let avgBuyPrice = commodityAvgPurchase[sale.commodity] || 0;
+                let profitPerKg = sale.price_per_kg - avgBuyPrice;
+                totalProfit += profitPerKg * sale.quantity;
+            }
+            return { totalPurchaseValue, totalSalesValue, totalProfit: totalProfit > 0 ? totalProfit : 0 };
+        }
+        
+        // Export to Excel (Sales + avg purchase price + profit)
+        async function exportReportToExcel() {
+            const sales = await fetchSales();
+            const purchasesAll = await fetchPurchases();
+            const commodityAvg = {};
+            const totalQty = {};
+            purchasesAll.forEach(p => {
+                if (!commodityAvg[p.commodity]) { commodityAvg[p.commodity] = 0; totalQty[p.commodity] = 0; }
+                commodityAvg[p.commodity] += p.quantity * p.price_per_kg;
+                totalQty[p.commodity] += p.quantity;
+            });
+            for (let c in commodityAvg) if (totalQty[c] > 0) commodityAvg[c] = commodityAvg[c] / totalQty[c];
+            const rows = sales.map(sale => {
+                const avgPrice = commodityAvg[sale.commodity] || 0;
+                const profit = (sale.price_per_kg - avgPrice) * sale.quantity;
+                return {
+                    "Tanggal": sale.date,
+                    "Komoditas": sale.commodity,
+                    "Quantity (kg)": sale.quantity,
+                    "Harga Beli Rata2 (Rp/kg)": avgPrice.toFixed(2),
+                    "Harga Jual (Rp/kg)": sale.price_per_kg,
+                    "Profit (Rp)": profit.toFixed(2)
+                };
+            });
+            const ws = XLSX.utils.json_to_sheet(rows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Laporan Penjualan");
+            XLSX.writeFile(wb, `TaniCatat_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
+        }
+        
+        // --- UI Rendering Functions (modular)---
+        async function renderDashboard() {
+            const purchases = await fetchPurchases();
+            const sales = await fetchSales();
+            const profitData = await getProfitAnalytics();
+            const stockMap = await computeStock();
+            const html = `
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-white p-4 rounded-xl shadow-sm text-center"><i class="fas fa-shopping-cart text-emerald-600 text-2xl"></i><p class="text-gray-500 text-sm">Total Pembelian</p><p class="font-bold text-xl">Rp ${profitData.totalPurchaseValue.toLocaleString()}</p></div>
+                        <div class="bg-white p-4 rounded-xl shadow-sm text-center"><i class="fas fa-chart-line text-blue-600 text-2xl"></i><p class="text-gray-500 text-sm">Total Penjualan</p><p class="font-bold text-xl">Rp ${profitData.totalSalesValue.toLocaleString()}</p></div>
+                        <div class="bg-white p-4 rounded-xl shadow-sm text-center col-span-2"><i class="fas fa-coins text-amber-600 text-2xl"></i><p class="text-gray-500 text-sm">Estimasi Profit</p><p class="font-bold text-2xl text-emerald-700">Rp ${profitData.totalProfit.toLocaleString()}</p></div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm"><h3 class="font-bold mb-2">📦 Ringkasan Stop Komoditas Utama</h3><div class="grid grid-cols-2 gap-3 text-center">${Object.entries(stockMap).map(([c, q]) => `<div class="bg-gray-50 p-2 rounded"><p class="font-semibold">${c}</p><p class="text-lg font-mono">${q.toFixed(1)} kg</p></div>`).join('')}</div></div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm"><h3 class="font-bold mb-2">🕒 Transaksi Terbaru</h3><div class="space-y-2 max-h-64 overflow-auto">${purchases.slice(0,3).map(p => `<div class="border-l-4 border-emerald-400 pl-2 text-sm">Pembelian: ${p.commodity} ${p.quantity}kg @ ${p.price_per_kg} (${p.date})</div>`).join('')}${sales.slice(0,3).map(s => `<div class="border-l-4 border-blue-400 pl-2 text-sm">Penjualan: ${s.commodity} ${s.quantity}kg @ ${s.price_per_kg} (${s.date})</div>`).join('')}</div></div>
+                </div>
+            `;
+            document.getElementById('dashboardPanel').innerHTML = html;
+        }
+        
+        async function renderPurchases() {
+            const purchases = await fetchPurchases();
+            const formHtml = `<div class="bg-white p-4 rounded-xl shadow-sm mb-5"><h2 class="font-bold text-lg mb-3"><i class="fas fa-tractor mr-2"></i>Catat Pembelian Petani</h2><form id="purchaseForm" class="space-y-3"><input type="date" id="purchaseDate" class="w-full p-2 border rounded" required><input type="text" id="farmerName" placeholder="Nama Petani" class="w-full p-2 border rounded" required><select id="purchaseCommodity" class="w-full p-2 border rounded"><option>Copra</option><option>Clove</option><option>Nutmeg</option><option>Coconut</option><option>Palm Oil</option><option>Kopi</option></select><input type="number" id="purchaseWeight" placeholder="Berat (kg)" step="any" class="w-full p-2 border rounded" required><input type="number" id="purchasePriceKg" placeholder="Harga per kg (Rp)" step="any" class="w-full p-2 border rounded" required><button type="submit" class="bg-emerald-700 w-full text-white py-2 rounded-lg font-bold">Simpan Pembelian</button></form></div><h3 class="font-semibold mt-4">Riwayat Pembelian</h3><div class="overflow-auto max-h-96"><table class="min-w-full bg-white rounded text-sm"><thead class="bg-gray-100"><tr><th class="p-2">Tanggal</th><th>Petani</th><th>Komoditas</th><th>Kg</th><th>Harga/Kg</th><th>Total</th></tr></thead><tbody id="purchaseList"></tbody></table></div>`;
+            document.getElementById('purchasesPanel').innerHTML = formHtml;
+            const tbody = document.getElementById('purchaseList');
+            tbody.innerHTML = purchases.map(p => `<tr class="border-b"><td class="p-2">${p.date}</td><td>${p.farmer_name}</td><td>${p.commodity}</td><td>${p.quantity}</td><td>${p.price_per_kg.toLocaleString()}</td><td>${(p.quantity*p.price_per_kg).toLocaleString()}</td></tr>`).join('');
+            document.getElementById('purchaseForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                try {
+                    await addPurchase({
+                        date: document.getElementById('purchaseDate').value,
+                        farmer_name: document.getElementById('farmerName').value,
+                        commodity: document.getElementById('purchaseCommodity').value,
+                        quantity: parseFloat(document.getElementById('purchaseWeight').value),
+                        price_per_kg: parseFloat(document.getElementById('purchasePriceKg').value)
+                    });
+                    alert("Pembelian tersimpan!");
+                    renderPurchases();
+                    renderDashboard();
+                    renderStock();
+                } catch(err) { alert("Gagal: "+err.message); }
+            });
+        }
+        
+        async function renderSales() {
+            const sales = await fetchSales();
+            const formHtml = `<div class="bg-white p-4 rounded-xl shadow-sm mb-5"><h2 class="font-bold text-lg mb-3"><i class="fas fa-hand-holding-usd mr-2"></i>Catat Penjualan ke Penadah</h2><form id="salesForm" class="space-y-3"><input type="date" id="saleDate" class="w-full p-2 border rounded" required><input type="text" id="buyerName" placeholder="Nama Pembeli" class="w-full p-2 border rounded" required><select id="saleCommodity" class="w-full p-2 border rounded"><option>Copra</option><option>Clove</option><option>Nutmeg</option><option>Coconut</option><option>Palm Oil</option><option>Kopi</option></select><input type="number" id="saleQuantity" placeholder="Jumlah (kg)" step="any" required class="w-full p-2 border rounded"><input type="number" id="salePrice" placeholder="Harga jual per kg (Rp)" step="any" required class="w-full p-2 border rounded"><button type="submit" class="bg-blue-700 w-full text-white py-2 rounded-lg font-bold">Simpan Penjualan</button></form></div><h3 class="font-semibold mt-4">Riwayat Penjualan</h3><div class="overflow-auto max-h-96"><table class="min-w-full bg-white rounded text-sm"><thead class="bg-gray-100"><tr><th>Tanggal</th><th>Pembeli</th><th>Komoditas</th><th>Kg</th><th>Harga Jual</th><th>Total</th></tr></thead><tbody id="salesList"></tbody></table></div>`;
+            document.getElementById('salesPanel').innerHTML = formHtml;
+            const tbody = document.getElementById('salesList');
+            tbody.innerHTML = sales.map(s => `<tr class="border-b"><td class="p-2">${s.date}</td><td>${s.buyer_name}</td><td>${s.commodity}</td><td>${s.quantity}</td><td>${s.price_per_kg.toLocaleString()}</td><td>${(s.quantity*s.price_per_kg).toLocaleString()}</td></tr>`).join('');
+            document.getElementById('salesForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                try {
+                    await addSale({
+                        date: document.getElementById('saleDate').value,
+                        buyer_name: document.getElementById('buyerName').value,
+                        commodity: document.getElementById('saleCommodity').value,
+                        quantity: parseFloat(document.getElementById('saleQuantity').value),
+                        price_per_kg: parseFloat(document.getElementById('salePrice').value)
+                    });
+                    alert("Penjualan tersimpan!");
+                    renderSales();
+                    renderDashboard();
+                    renderStock();
+                } catch(err) { alert("Gagal: "+err.message); }
+            });
+        }
+        
+        async function renderStock() {
+            const stock = await computeStock();
+            const html = `<div class="bg-white rounded-xl shadow-sm p-5"><h2 class="text-xl font-bold mb-4">📦 Stok Gudang Saat Ini</h2><div class="grid grid-cols-2 gap-4">${Object.entries(stock).map(([comm, qty]) => `<div class="bg-emerald-50 p-4 rounded-2xl text-center"><i class="fas fa-boxes text-emerald-600 text-3xl mb-2 block"></i><span class="font-bold text-gray-700">${comm}</span><div class="text-2xl font-mono font-bold">${qty.toFixed(1)} kg</div></div>`).join('')}</div><p class="text-xs text-gray-500 mt-3">*Perhitungan otomatis dari total pembelian - penjualan</p></div>`;
+            document.getElementById('stockPanel').innerHTML = html;
+        }
+        
+        // National Price Simulation with Chart
+        async function renderNationalPrices() {
+            const commoditiesPrice = [
+                { name: "Copra", price: 7850, trend: "▲ +2%" }, { name: "Clove", price: 142500, trend: "▲ +1.2%" },
+                { name: "Nutmeg", price: 98000, trend: "▼ -0.5%" }, { name: "Palm Oil", price: 12100, trend: "▲ +0.8%" }
+            ];
+            const html = `<div class="bg-white p-4 rounded-xl shadow-sm"><h2 class="font-bold text-lg mb-2">🏷️ Harga Rata-rata Nasional (Simulasi)</h2><div class="space-y-2">${commoditiesPrice.map(c => `<div class="flex justify-between border-b py-2"><span class="font-medium">${c.name}</span><span>Rp ${c.price.toLocaleString()}/kg</span><span class="text-sm ${c.trend.includes('▲')?'text-green-600':'text-red-600'}">${c.trend}</span></div>`).join('')}</div><canvas id="nationalChartCanvas" class="mt-5 h-48 w-full"></canvas></div>`;
+            document.getElementById('nationalPanel').innerHTML = html;
+            const ctx = document.getElementById('nationalChartCanvas').getContext('2d');
+            if (nationalChart) nationalChart.destroy();
+            nationalChart = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: commoditiesPrice.map(c=>c.name), datasets: [{ label: 'Harga (Rp/kg)', data: commoditiesPrice.map(c=>c.price), backgroundColor: '#2c7a4d', borderRadius: 8 }] },
+                options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'top' } } }
+            });
+        }
+        
+        async function renderBuyers() {
+            const buyers = await fetchBuyers();
+            const html = `<div class="bg-white p-4 rounded-xl shadow-sm"><div class="flex justify-between items-center"><h2 class="font-bold text-lg">📋 Direktori Buyer Besar</h2><button id="addBuyerBtn" class="bg-emerald-600 text-white px-3 py-1 rounded text-sm"><i class="fas fa-plus"></i> Tambah</button></div><div class="overflow-x-auto mt-3"><table class="min-w-full text-sm"><thead><tr class="bg-gray-100"><th>Nama</th><th>Komoditas</th><th>Wilayah</th><th>Estimasi Harga</th><th>Aksi</th></tr></thead><tbody id="buyerTableBody"></tbody></table></div></div>`;
+            document.getElementById('buyersPanel').innerHTML = html;
+            const tbody = document.getElementById('buyerTableBody');
+            tbody.innerHTML = buyers.map(b => `<tr class="border-b"><td class="p-2">${b.buyer_name}</td><td>${b.commodity}</td><td>${b.region || '-'}</td><td>Rp ${b.estimated_buying_price?.toLocaleString() || '-'}</td><td><button onclick="editBuyer('${b.id}')" class="text-blue-600 mr-2"><i class="fas fa-edit"></i></button><button onclick="removeBuyer('${b.id}')" class="text-red-600"><i class="fas fa-trash"></i></button></td></tr>`).join('');
+            window.editBuyer = async (id) => {
+                const buyer = buyers.find(b=>b.id === id);
+                const newName = prompt("Nama Buyer:", buyer.buyer_name);
+                if(newName) await updateBuyer(id, { buyer_name: newName });
+                renderBuyers();
+            };
+            window.removeBuyer = async (id) => { if(confirm("Hapus buyer?")) { await deleteBuyer(id); renderBuyers(); } };
+            document.getElementById('addBuyerBtn').addEventListener('click', async () => {
+                const name = prompt("Nama Buyer:");
+                if(name) await addBuyer({ buyer_name: name, commodity: "Copra", region: "Jakarta", website: "", estimated_buying_price: 0 });
+                renderBuyers();
+            });
+        }
+        
+        async function renderReports() {
+            const profitData = await getProfitAnalytics();
+            const html = `<div class="bg-white p-5 rounded-xl shadow-sm space-y-5"><h2 class="text-xl font-bold">📊 Analisis Keuntungan</h2><div class="grid grid-cols-2 gap-3"><div class="bg-green-50 p-3 rounded"><p>Total Pembelian</p><p class="font-bold">Rp ${profitData.totalPurchaseValue.toLocaleString()}</p></div><div class="bg-blue-50 p-3 rounded"><p>Total Penjualan</p><p class="font-bold">Rp ${profitData.totalSalesValue.toLocaleString()}</p></div><div class="bg-amber-50 p-3 rounded col-span-2"><p>Estimasi Profit (Metode rata-rata)</p><p class="font-bold text-xl text-emerald-700">Rp ${profitData.totalProfit.toLocaleString()}</p></div></div><button id="exportExcelBtn" class="bg-emerald-700 text-white w-full py-3 rounded-xl font-bold shadow-md"><i class="fas fa-file-excel mr-2"></i> Export ke Excel (Laporan Penjualan)</button><canvas id="profitChart" class="mt-5 h-48"></canvas></div>`;
+            document.getElementById('reportsPanel').innerHTML = html;
+            const ctx = document.getElementById('profitChart').getContext('2d');
+            new Chart(ctx, { type: 'bar', data: { labels: ['Pembelian', 'Penjualan', 'Profit'], datasets: [{ label: 'Rp', data: [profitData.totalPurchaseValue, profitData.totalSalesValue, profitData.totalProfit], backgroundColor: ['#f97316','#3b82f6','#10b981'] }] } });
+            document.getElementById('exportExcelBtn').addEventListener('click', () => exportReportToExcel());
+        }
+        
+        async function loadAllInitialData() { await Promise.all([renderDashboard(), renderPurchases(), renderSales(), renderStock(), renderBuyers(), renderNationalPrices(), renderReports()]); }
+        function resetPanels() { document.querySelectorAll('.panel').forEach(p => p.classList.add('hidden')); }
+        
+        // Tab switching
+        function initTabs() {
+            const btns = document.querySelectorAll('.tab-btn');
+            const panels = {
+                dashboard: 'dashboardPanel', purchases: 'purchasesPanel', sales: 'salesPanel', stock: 'stockPanel',
+                buyers: 'buyersPanel', national: 'nationalPanel', reports: 'reportsPanel'
+            };
+            function showPanel(panelId) { resetPanels(); document.getElementById(panelId).classList.remove('hidden'); }
+            btns.forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const tab = btn.getAttribute('data-tab');
+                    if (panels[tab]) showPanel(panels[tab]);
+                    if (tab === 'dashboard') await renderDashboard();
+                    if (tab === 'purchases') await renderPurchases();
+                    if (tab === 'sales') await renderSales();
+                    if (tab === 'stock') await renderStock();
+                    if (tab === 'buyers') await renderBuyers();
+                    if (tab === 'national') await renderNationalPrices();
+                    if (tab === 'reports') await renderReports();
+                    btns.forEach(b => b.classList.remove('active-tab', 'bg-emerald-700', 'text-white'));
+                    btn.classList.add('active-tab', 'bg-emerald-700', 'text-white');
+                });
+            });
+            showPanel('dashboardPanel');
+            if(btns[0]) btns[0].classList.add('active-tab', 'bg-emerald-700', 'text-white');
+        }
+        
+        // Auth UI events
+        document.getElementById('loginBtn').onclick = async () => { try { await handleLogin(document.getElementById('loginEmail').value, document.getElementById('loginPassword').value); } catch(e) { document.getElementById('authMessage').innerText = e.message; } };
+        document.getElementById('registerBtn').onclick = async () => { try { await handleRegister(document.getElementById('regEmail').value, document.getElementById('regPassword').value); } catch(e) { document.getElementById('authMessage').innerText = e.message; } };
+        document.getElementById('showRegisterBtn').onclick = () => { document.getElementById('loginPanel').classList.add('hidden'); document.getElementById('registerPanel').classList.remove('hidden'); };
+        document.getElementById('showLoginBtn').onclick = () => { document.getElementById('registerPanel').classList.add('hidden'); document.getElementById('loginPanel').classList.remove('hidden'); };
+        document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
+        
+        // Start app
+        checkSession().then(() => { if(currentUser) initTabs(); });
+        window.addEventListener('load', () => { if(currentUser) initTabs(); });
+    </script>
+    <!-- Database Schema Instruction (Supabase SQL) -->
+    <!-- 
+    === SUPABASE DATABASE SCHEMA (Jalankan di SQL Editor Supabase) ===
+    -- Tabel purchases
+    CREATE TABLE purchases (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, user_id UUID REFERENCES auth.users(id) NOT NULL, date DATE NOT NULL, farmer_name TEXT NOT NULL, commodity TEXT NOT NULL, quantity DECIMAL NOT NULL, price_per_kg DECIMAL NOT NULL, created_at TIMESTAMPTZ DEFAULT now());
+    -- Tabel sales
+    CREATE TABLE sales (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, user_id UUID REFERENCES auth.users(id) NOT NULL, date DATE NOT NULL, buyer_name TEXT NOT NULL, commodity TEXT NOT NULL, quantity DECIMAL NOT NULL, price_per_kg DECIMAL NOT NULL, created_at TIMESTAMPTZ DEFAULT now());
+    -- Tabel buyers
+    CREATE TABLE buyers (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, user_id UUID REFERENCES auth.users(id) NOT NULL, buyer_name TEXT NOT NULL, commodity TEXT, region TEXT, website TEXT, estimated_buying_price DECIMAL);
+    -- Enable RLS
+    ALTER TABLE purchases ENABLE ROW LEVEL SECURITY; ALTER TABLE sales ENABLE ROW LEVEL SECURITY; ALTER TABLE buyers ENABLE ROW LEVEL SECURITY;
+    -- Policies
+    CREATE POLICY "User access purchases" ON purchases USING (user_id = auth.uid());
+    CREATE POLICY "User access sales" ON sales USING (user_id = auth.uid());
+    CREATE POLICY "User access buyers" ON buyers USING (user_id = auth.uid());
+    -->
+</body>
+</html>
